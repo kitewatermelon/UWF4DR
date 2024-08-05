@@ -2,3 +2,5 @@ DR
 done
 archive
 Task*
+*.pth
+*.pt

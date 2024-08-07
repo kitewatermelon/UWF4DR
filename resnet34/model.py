@@ -36,7 +36,7 @@ class model:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = None
         self.transform = transforms.Compose([
-        transforms.Resize((299, 299)),
+        transforms.Resize((244, 244)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomRotation(30),

@@ -6,19 +6,22 @@ from torchvision.models import resnet18
 from PIL import Image
 import numpy as np
 import cv2
-
-class CLAHETransform:
+class CLAHETransform(object):
     def __init__(self, clip_limit=2.0, tile_grid_size=(8, 8)):
-        self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
-        
+        self.clip_limit = clip_limit
+        self.tile_grid_size = tile_grid_size
+    
     def __call__(self, img):
         img = np.array(img)
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
-        l, a, b = cv2.split(img)
-        l = self.clahe.apply(l)
-        img = cv2.merge((l, a, b))
-        img = cv2.cvtColor(img, cv2.COLOR_LAB2RGB)
-        return Image.fromarray(img)
+        clahe = cv2.createCLAHE(clipLimit=self.clip_limit, tileGridSize=self.tile_grid_size)
+        if len(img.shape) == 2:  # Single channel image
+            img = clahe.apply(img)
+        else:  # Multi-channel image
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+            img[:, :, 0] = clahe.apply(img[:, :, 0])
+            img = cv2.cvtColor(img, cv2.COLOR_LAB2RGB)
+        return transforms.ToPILImage()(img)
+
 
 class GammaCorrection:
     def __init__(self, gamma=1.0):
@@ -30,24 +33,48 @@ class GammaCorrection:
         img = np.power(img, self.gamma)
         img = np.uint8(img * 255)
         return Image.fromarray(img)
+        
+class ExtractChannel(object):
+    def __init__(self, c='R'):
+        self.c = c
+        if self.c == 'R':
+            self.channel = 0 
+        elif self.c == 'G':
+            self.channel = 1 
+        else:
+            self.channel = 2
+
+    def __call__(self, img):
+        img = np.array(img)
+        # Red 채널만 추출
+        img_channel = img[:, :, self.channel]
+        # img 채널을 3D 텐서로 변환
+        img_channel = np.expand_dims(img_channel, axis=2)
+        # 다시 PIL 이미지로 변환
+        return transforms.ToPILImage()(img_channel)
 
 class model:
     def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = None
         self.transform = transforms.Compose([
-        transforms.Resize((299, 299)),
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.RandomHorizontalFlip(p=0.5),
+        ExtractChannel(c='G'),           # Red 채널 추출
         transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomRotation(30),
         CLAHETransform(clip_limit=5.0, tile_grid_size=(8, 8)),
         GammaCorrection(gamma=0.45),
         transforms.ToTensor(),
-        transforms.Normalize(mean = [0.485, 0.456, 0.406],std = [0.229, 0.224, 0.225])
-       ])
-
+        # transforms.Normalize(mean = [0.485, 0.456, 0.406],std = [0.229, 0.224, 0.225])
+        transforms.Normalize(mean = [0.485],std = [0.229])
+    ])
     def init(self):
         self.model = resnet18(pretrained=True)
+        self.model.conv1 = nn.Conv2d(1, self.model.conv1.out_channels, kernel_size=self.model.conv1.kernel_size, 
+                            stride=self.model.conv1.stride, padding=self.model.conv1.padding, bias=False)
+        self.model.bn1 = nn.BatchNorm2d(self.model.conv1.out_channels)
+
         num_features = self.model.fc.in_features
         self.model.fc = nn.Linear(num_features, 2)  # Assuming binary classification
         self.model = self.model.to(self.device)

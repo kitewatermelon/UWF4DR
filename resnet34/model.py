@@ -7,6 +7,9 @@ from PIL import Image
 import numpy as np
 import cv2
 
+# IMAGE_SIZE 상수 정의
+IMAGE_SIZE = 256
+
 class CLAHETransform:
     def __init__(self, clip_limit=2.0, tile_grid_size=(8, 8)):
         self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
@@ -31,23 +34,49 @@ class GammaCorrection:
         img = np.uint8(img * 255)
         return Image.fromarray(img)
 
+class ErodeTransform:
+    def __init__(self, kernel_size=(3, 3), iterations=1):
+        self.kernel = np.ones(kernel_size, np.uint8)
+        self.iterations = iterations
+
+    def __call__(self, img):
+        img = np.array(img)
+        img = cv2.erode(img, self.kernel, iterations=self.iterations)
+        return Image.fromarray(img)
+
+class DilateTransform:
+    def __init__(self, kernel_size=(3, 3), iterations=1):
+        self.kernel = np.ones(kernel_size, np.uint8)
+        self.iterations = iterations
+
+    def __call__(self, img):
+        img = np.array(img)
+        img = cv2.dilate(img, self.kernel, iterations=self.iterations)
+        return Image.fromarray(img)
+
+
 class model:
     def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = None
-        self.transform = transforms.Compose([
-        transforms.Resize((244, 244)),
+        self.transform = transforms.Compose(
+    [
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+        transforms.CenterCrop(IMAGE_SIZE/2),                    # 중앙에서 256x256 크기로 잘라내기
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomRotation(30),
+        
         CLAHETransform(clip_limit=5.0, tile_grid_size=(8, 8)),
-        GammaCorrection(gamma=0.45),
+        GammaCorrection(gamma=0.40),
+        
         transforms.ToTensor(),
-        transforms.Normalize(mean = [0.485, 0.456, 0.406],std = [0.229, 0.224, 0.225])
-       ])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ]
+)
 
     def init(self):
-        self.model = resnet34(pretrained=True)
+        self.model = resnet34(pretrained=True)  # 최신 torchvision 사용 시
         num_features = self.model.fc.in_features
         self.model.fc = nn.Linear(num_features, 2)  # Assuming binary classification
         self.model = self.model.to(self.device)
@@ -68,7 +97,6 @@ class model:
             probs = torch.softmax(output, dim=1)
             pred = probs.argmax(dim=1).item()
             pred = 1 - pred  # Reverse the prediction
-
         return pred
 
 # Ensure to save the model weights file (model_weights.pth) in the same directory as this model.py file.

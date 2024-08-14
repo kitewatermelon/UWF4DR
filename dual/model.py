@@ -82,7 +82,7 @@ class model:
         
         # 첫 번째 트랜스폼: 원본 이미지에 대한 트랜스폼
         self.transform1 = transforms.Compose([
-            transforms.Resize((IMAGE_SIZE//2, IMAGE_SIZE//2)),
+            transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
             transforms.RandomRotation(30),
@@ -103,28 +103,29 @@ class model:
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
+
     
     def init(self):
         # 모델 초기화
         self.model = DualResNet(num_classes=1)
         self.model = self.model.to(self.device)
     
-    def load(self):
-        model_path = os.path.join(os.path.dirname(__file__), 'final_model.pth')
-        if not os.path.isfile(model_path):
-            raise FileNotFoundError(f"Model file not found: {model_path}")
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
-        self.model.eval()
+    def load(self, weights_path):
+        if self.model is None:
+            self.init()
+        model_weights_path = os.path.join(weights_path, 'model_weights.pth')  # Assuming the weights file is named 'model_weights.pth'
+        self.model.load_state_dict(torch.load(model_weights_path, map_location=self.device))
 
-    
-    def predict(self, image_path):
-        # 이미지를 받아서 예측을 수행
-        img = Image.open(image_path).convert('RGB')
-        
+    def predict(self, img):
+        if isinstance(img, np.ndarray):
+            img = Image.fromarray(img)        
         img1 = self.transform1(img).unsqueeze(0).to(self.device)
         img2 = self.transform2(img).unsqueeze(0).to(self.device)
         
         with torch.no_grad():
-            output = self.model(img1, img2).squeeze(1)  # 두 이미지에 대한 예측
+            output = self.model(img1, img2)
+            predicted = (output > 0.5).float()
             predicted = torch.sigmoid(output).item()
-            return 1 if predicted > 0.5 else 0  # 이진 분류 결과 반환
+            predicted = 1 - predicted
+
+            return predicted

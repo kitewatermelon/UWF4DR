@@ -4,3 +4,5 @@ archive
 Task*
 *.pth
 *.pt
+*.jpg
+*.zip

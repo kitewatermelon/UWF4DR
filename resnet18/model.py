@@ -9,7 +9,6 @@ import cv2
 
 # IMAGE_SIZE 상수 정의
 IMAGE_SIZE = 256
-
 class CLAHETransform:
     def __init__(self, clip_limit=2.0, tile_grid_size=(8, 8)):
         self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
@@ -33,28 +32,33 @@ class GammaCorrection:
         img = np.power(img, self.gamma)
         img = np.uint8(img * 255)
         return Image.fromarray(img)
+
+
+
+def create_doughnut_gaussian_mask(size, sigma_outer, sigma_inner):
+    center = size[0] // 2, size[1] // 2
+    x = np.linspace(0, size[0] - 1, size[0])
+    y = np.linspace(0, size[1] - 1, size[1])
+    X, Y = np.meshgrid(x, y)
     
-# 가우시안 분포 이미지를 생성하는 함수
-def create_gaussian_mask(size, sigma=0.5):
-    """ size: (H, W) 형태의 튜플로 이미지 크기 설정
-        sigma: 가우시안 분포의 표준편차
-    """
-    H, W = size
-    # 가우시안 분포를 만드는 x, y 좌표계 생성
-    x = np.linspace(-1, 1, W)
-    y = np.linspace(-1, 1, H)
-    x, y = np.meshgrid(x, y)
+    # Calculate distances from center
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y - center[1])**2)
     
-    # 2차원 가우시안 분포 계산
-    d = np.sqrt(x*x + y*y)
-    gaussian = np.exp(-d**2 / (2.0 * sigma**2))
+    # Gaussian masks
+    gaussian_outer = np.exp(-dist_from_center**2 / (2 * sigma_outer**2))
+    gaussian_inner = np.exp(-dist_from_center**2 / (2 * sigma_inner**2))
     
-    return gaussian
+    # Doughnut mask: subtract inner Gaussian from outer Gaussian
+    doughnut_mask = gaussian_outer - gaussian_inner
+    doughnut_mask = np.clip(doughnut_mask, 0, 1)
+    
+    return doughnut_mask
+
 
 # MultiplyTransform 클래스 수정: 가우시안 분포 이미지 곱하기
 class GaussianMultiplyTransform:
     def __init__(self, size, sigma=0.5):
-        self.gaussian_mask = create_gaussian_mask(size, sigma)
+        self.gaussian_mask = create_doughnut_gaussian_mask(size, sigma_inner=30, sigma_outer=100)
         
     def __call__(self, img):
         img_np = np.array(img).astype(np.float32)
@@ -70,6 +74,7 @@ class GaussianMultiplyTransform:
         img_np = np.clip(img_np, 0, 255).astype(np.uint8)
         return Image.fromarray(img_np)
 
+
 class model:
     def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -77,19 +82,17 @@ class model:
         self.transform = transforms.Compose(
     [
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        transforms.CenterCrop((IMAGE_SIZE //2  ,IMAGE_SIZE )),  # // 사용으로 정수 나누기
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
                 
+        GaussianMultiplyTransform(size=(IMAGE_SIZE, IMAGE_SIZE)),  # 가우시안 분포 곱하기
         CLAHETransform(clip_limit=5.0, tile_grid_size=(8, 8)),
         GammaCorrection(gamma=0.45),
-        GaussianMultiplyTransform(size=(IMAGE_SIZE, IMAGE_SIZE), sigma=0.8),  # 가우시안 분포 곱하기
-        
-        
+        transforms.CenterCrop(IMAGE_SIZE - 50),  # // 사용으로 정수 나누기
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
 )
-
 
     def init(self):
         self.model = resnet18(pretrained=True)  # 최신 torchvision 사용 시

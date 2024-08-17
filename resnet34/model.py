@@ -58,7 +58,7 @@ def create_doughnut_gaussian_mask(size, sigma_outer, sigma_inner):
 # MultiplyTransform 클래스 수정: 가우시안 분포 이미지 곱하기
 class GaussianMultiplyTransform:
     def __init__(self, size, sigma=0.5):
-        self.gaussian_mask = create_doughnut_gaussian_mask(size, sigma_inner=30, sigma_outer=100)
+        self.gaussian_mask = create_doughnut_gaussian_mask(size, sigma_inner=0, sigma_outer=50)
         
     def __call__(self, img):
         img_np = np.array(img).astype(np.float32)

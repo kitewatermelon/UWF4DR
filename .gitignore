@@ -7,3 +7,5 @@ Task*
 *.jpg
 *.zip
 model_graph*
+data
+__pycache__

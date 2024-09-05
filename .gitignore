@@ -8,6 +8,10 @@ Task*
 *.zip
 model_graph*
 __pycache__
+
 nomore
 images
 labels
+
+logs
+saved

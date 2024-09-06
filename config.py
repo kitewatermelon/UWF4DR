@@ -9,23 +9,26 @@ IMAGE_CHANNEL = 3
 
 # paths for dataset
 save_model_dir = "saved_model/model"
-image_path = r'data\images\1. Training'
-label_path = r'data\labels\1. Training.csv'
+image_path = r"data\images\1. Training"
+label_path = r"data\labels\1. Training.csv"
 
 # configurations for train
-EPOCHS = 25
+EPOCHS = 20
 BATCH_SIZE = 32
-k_folds = 5
+k_folds = 10
 trainer_config = {
-    "max_epochs": 20,
+    "max_epochs": EPOCHS,
     "accelerator": "gpu",  # CPU 사용 시 "cpu"
     "precision": 16,  # Mixed precision
     "logger": TensorBoardLogger("logs/"),  # 로그 저장
-    "callbacks": [ModelCheckpoint(monitor="val_loss"), EarlyStopping(monitor="val_loss", patience=3)],
-    "log_every_n_steps": 50,
+    # "callbacks": [  ModelCheckpoint(monitor="val_loss"), 
+    #                 EarlyStopping(monitor="val_loss", 
+    #                 patience=10)],
+    "log_every_n_steps": 5,
     "check_val_every_n_epoch": 1,
-    "profiler": "simple",  # 학습 속도 분석
     "fast_dev_run": False,  # 코드 디버깅
     "sync_batchnorm": True,  # 다중 GPU 배치 정규화 동기화
     "deterministic": True,  # 결과 재현성 보장
+    # "enable_progress_bar": False,  # 프로그래스 바와 성능 로그 비활성화
+    "profiler" : False,
 }

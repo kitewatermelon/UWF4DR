@@ -61,13 +61,13 @@ class GaussianMultiplyTransform:
 transform = transforms.Compose(
     [
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        # transforms.CenterCrop(IMAGE_SIZE/2),
-        # transforms.RandomHorizontalFlip(p=0.5),
-        # transforms.RandomVerticalFlip(p=0.5),
-        # transforms.RandomRotation(30),
+        transforms.CenterCrop(IMAGE_SIZE/2),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.5),
+        transforms.RandomRotation(30),
         
-        # CLAHETransform(clip_limit=5.0, tile_grid_size=(8, 8)),
-        # GammaCorrection(gamma=0.35),
+        CLAHETransform(clip_limit=5.0, tile_grid_size=(8, 8)),
+        GammaCorrection(gamma=0.35),
         
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])

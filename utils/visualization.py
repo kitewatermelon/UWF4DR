@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import pandas as pd 
 
 CLA_label = {
     0: 'Normal',
@@ -98,3 +99,23 @@ def visualize_data(dataset, hist=False):
 
         plt.suptitle('Pixel Intensity Histograms', y=0.95)
         plt.show()
+
+def print_fold_results(fold_results):
+    # Convert results to DataFrame
+    df = pd.DataFrame(fold_results)
+    
+    # Set correct column names
+    expected_columns = ['Fold', 'Train Loss', 'Train Accuracy', 'Val Loss', 'Val Accuracy']
+    
+    if len(df.columns) != len(expected_columns):
+        raise ValueError(f"Length mismatch: Expected axis has {len(df.columns)} elements, new values have {len(expected_columns)} elements")
+    
+    df.columns = expected_columns
+    
+    # Print DataFrame
+    print("\nFold Results:")
+    print(df.to_string(index=False, formatters={'Train Loss': '{:.4f}'.format, 
+                                               'Train Accuracy': '{:.4f}'.format, 
+                                               'Val Loss': '{:.4f}'.format, 
+                                               'Val Accuracy': '{:.4f}'.format}))
+

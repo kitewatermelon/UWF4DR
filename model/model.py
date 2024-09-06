@@ -3,7 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 from torch.optim import Adam
+from torchmetrics import Accuracy  # Accuracy 추가
 from config import NUM_CLASSES
+import torchmetrics
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -40,6 +42,8 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
         self.save_hyperparameters()  # Save hyperparameters like num_classes and learning_rate
         self.in_channels = 64
         self.learning_rate = learning_rate
+        self.loss_fn = nn.CrossEntropyLoss()
+        self.accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
 
         # Define layers
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -54,6 +58,10 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
         
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
+
+        # Accuracy Metric
+        self.train_accuracy = Accuracy(task='multiclass', num_classes=NUM_CLASSES)
+        self.val_accuracy = Accuracy(task='multiclass', num_classes=NUM_CLASSES)
     
     def _make_layer(self, block, out_channels, blocks, stride=1):
         downsample = None
@@ -90,18 +98,42 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
         return x
 
     def training_step(self, batch, batch_idx):
-        inputs, targets = batch
-        outputs = self(inputs)
-        loss = F.cross_entropy(outputs, targets)
-        self.log('train_loss', loss)
-        return loss
+        loss, scores, y = self._common_step(batch, batch_idx)
+        accuracy = self.accuracy(scores, y)
+        self.log_dict({'train_loss':loss,
+                       'train_accuracy':accuracy,
+                       },
+                       on_step=False,
+                       on_epoch=True,
+                       prog_bar=True,
+                       logger=True
+                       )
+        return {'loss' : loss,' scores' : scores, 'y' : y}
 
     def validation_step(self, batch, batch_idx):
-        inputs, targets = batch
-        outputs = self(inputs)
-        val_loss = F.cross_entropy(outputs, targets)
-        self.log('val_loss', val_loss)
-        return val_loss
+        loss, scores, y = self._common_step(batch, batch_idx)
+        accuracy = self.accuracy(scores, y)
+
+        self.log_dict({'val_loss':loss,
+                       'val_accuracy':accuracy,
+                       },
+                       on_step=False,
+                       on_epoch=True,
+                       prog_bar=True,
+                       logger=True
+                       )
+        return {'loss' : loss,' scores' : scores, 'y' : y}
+
+    
+    def test_step(self, batch, batch_idx):
+        loss, scores, y = self._common_step(batch, batch_idx)
+        return loss
+    
+    def _common_step(self, batch, batch_idx):
+        x, y = batch
+        scores = self.forward(x)
+        loss = self.loss_fn(scores, y)
+        return loss, scores, y
 
     def configure_optimizers(self):
         optimizer = Adam(self.parameters(), lr=self.learning_rate)

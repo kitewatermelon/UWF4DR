@@ -45,8 +45,8 @@ def create_doughnut_gaussian_mask(size, sigma_outer, sigma_inner):
 
 
 class GaussianMultiplyTransform:
-    def __init__(self, size, sigma=0.5):
-        self.gaussian_mask = create_doughnut_gaussian_mask(size, sigma_inner=30, sigma_outer=100)
+    def __init__(self, size, sigma_inner=30, sigma_outer=100):
+        self.gaussian_mask = create_doughnut_gaussian_mask(size, sigma_inner, sigma_outer)
         
     def __call__(self, img):
         img_np = np.array(img).astype(np.float32)
@@ -58,18 +58,34 @@ class GaussianMultiplyTransform:
         img_np = np.clip(img_np, 0, 255).astype(np.uint8)
         return Image.fromarray(img_np)
     
-transform = transforms.Compose(
-    [
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        transforms.CenterCrop(IMAGE_SIZE/2),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.5),
-        transforms.RandomRotation(30),
-        
-        CLAHETransform(clip_limit=5.0, tile_grid_size=(8, 8)),
-        GammaCorrection(gamma=0.35),
-        
+
+def grid_search_transform(image_size, 
+                          use_center_crop=False, 
+                          gaussian_sigma=None, 
+                          tile_size=4):
+    transform_list = []
+    
+    # 기본적인 transforms
+    current_transform = [
+        transforms.Resize((image_size, image_size)),
+        CLAHETransform(clip_limit=5.0, tile_grid_size=(tile_size, tile_size)),
+        GammaCorrection(gamma=0.35)
+    ]
+    
+    # 옵션 1: CenterCrop 적용
+    if use_center_crop:
+        current_transform.append(transforms.CenterCrop(image_size // 2))
+    
+    # 옵션 2 & 3: GaussianMultiplyTransform 적용
+    if gaussian_sigma:
+        current_transform.append(GaussianMultiplyTransform(size=(image_size, image_size), sigma_inner=gaussian_sigma, sigma_outer=0))
+    
+    # 마지막 기본 변환들 추가
+    current_transform.extend([
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ]
-)
+    ])
+    
+    transform_list.append(transforms.Compose(current_transform))
+    
+    return transform_list

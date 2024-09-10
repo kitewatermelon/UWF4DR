@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 from torch.optim import Adam
-from torchmetrics import Accuracy  # Accuracy 추가
+from torch import tensor
+
 from config import NUM_CLASSES
 import torchmetrics
 
@@ -41,9 +42,13 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
         super(ResNet, self).__init__()
         self.save_hyperparameters()  # Save hyperparameters like num_classes and learning_rate
         self.in_channels = 64
-        self.learning_rate = learning_rate
-        self.loss_fn = nn.CrossEntropyLoss()
-        self.accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
+        self.learning_rate  = learning_rate
+        self.loss_fn        = nn.CrossEntropyLoss()
+        self.accuracy       = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
+        self.f1_score       = torchmetrics.F1Score(task="multiclass", num_classes=num_classes)
+        self.aucroc         = torchmetrics.AUROC(task="multiclass", num_classes=num_classes)
+        self.precision      = torchmetrics.Precision(task="multiclass", num_classes=num_classes)
+        self.recall         = torchmetrics.Recall(task="multiclass", num_classes=num_classes)
 
         # Define layers
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -59,10 +64,6 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
-        # Accuracy Metric
-        self.train_accuracy = Accuracy(task='multiclass', num_classes=NUM_CLASSES)
-        self.val_accuracy = Accuracy(task='multiclass', num_classes=NUM_CLASSES)
-    
     def _make_layer(self, block, out_channels, blocks, stride=1):
         downsample = None
         if stride != 1 or self.in_channels != out_channels * block.expansion:
@@ -100,8 +101,17 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
     def training_step(self, batch, batch_idx):
         loss, scores, y = self._common_step(batch, batch_idx)
         accuracy = self.accuracy(scores, y)
-        self.log_dict({'train_loss':loss,
-                       'train_accuracy':accuracy,
+        f1_score = self.f1_score(scores, y)
+        aucroc = self.aucroc(scores, y)
+        precision = self.precision(scores, y)
+        recall = self.recall(scores, y)
+        
+        self.log_dict({'train_loss'     :loss,
+                       'train_accuracy' :accuracy,
+                       'train_f1_score' :f1_score,
+                       'train_aucroc'   :aucroc,
+                       'train_precision':precision,
+                       'train_recall'   :recall,
                        },
                        on_step=False,
                        on_epoch=True,
@@ -113,9 +123,17 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
     def validation_step(self, batch, batch_idx):
         loss, scores, y = self._common_step(batch, batch_idx)
         accuracy = self.accuracy(scores, y)
-
-        self.log_dict({'val_loss':loss,
-                       'val_accuracy':accuracy,
+        f1_score = self.f1_score(scores, y)
+        aucroc = self.aucroc(scores, y)
+        precision = self.precision(scores, y)
+        recall = self.recall(scores, y)
+        
+        self.log_dict({'val_loss'     :loss,
+                       'val_accuracy' :accuracy,
+                       'val_f1_score' :f1_score,
+                       'val_aucroc'   :aucroc,
+                       'val_precision':precision,
+                       'val_recall'   :recall,
                        },
                        on_step=False,
                        on_epoch=True,

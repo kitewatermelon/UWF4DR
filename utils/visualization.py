@@ -2,6 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import pandas as pd 
+import os
+import shutil
+import sys
+sys.path.append('c:/Users/Administrator/dr박연수/')
+
+from config import * 
 
 CLA_label = {
     0: 'Normal',
@@ -100,22 +106,92 @@ def visualize_data(dataset, hist=False):
         plt.suptitle('Pixel Intensity Histograms', y=0.95)
         plt.show()
 
-def print_fold_results(fold_results):
-    # Convert results to DataFrame
+def save_and_print_fold_results(info, fold_results):
     df = pd.DataFrame(fold_results)
-    
-    # Set correct column names
-    expected_columns = ['Fold', 'Train Loss', 'Train Accuracy', 'Val Loss', 'Val Accuracy']
-    
+    save_version = get_save_version(save_dir)
+
+    expected_columns = ['Fold', 
+                        'train_loss' ,    
+                        'train_accuracy' ,
+                        'train_f1_score' ,
+                        'train_aucroc' ,  
+                        'train_precision',
+                        'train_recall' ,
+                        'val_loss' ,    
+                        'val_accuracy' ,
+                        'val_f1_score' ,
+                        'val_aucroc' ,  
+                        'val_precision',
+                        'val_recall' ,  
+                        ]
+
     if len(df.columns) != len(expected_columns):
         raise ValueError(f"Length mismatch: Expected axis has {len(df.columns)} elements, new values have {len(expected_columns)} elements")
     
     df.columns = expected_columns
     
-    # Print DataFrame
     print("\nFold Results:")
-    print(df.to_string(index=False, formatters={'Train Loss': '{:.4f}'.format, 
-                                               'Train Accuracy': '{:.4f}'.format, 
-                                               'Val Loss': '{:.4f}'.format, 
-                                               'Val Accuracy': '{:.4f}'.format}))
+    print(df.to_string(index=False, formatters={
+        'train_loss'        : '{:.4f}'.format,    
+        'train_accuracy'    : '{:.4f}'.format,
+        'train_f1_score'    : '{:.4f}'.format,
+        'train_aucroc'      : '{:.4f}'.format,  
+        'train_precision'   : '{:.4f}'.format,
+        'train_recall'      : '{:.4f}'.format,
 
+        'val_loss'      : '{:.4f}'.format,    
+        'val_accuracy'  : '{:.4f}'.format,
+        'val_f1_score'  : '{:.4f}'.format,
+        'val_aucroc'    : '{:.4f}'.format,  
+        'val_precision' : '{:.4f}'.format,
+        'val_recall'    : '{:.4f}'.format,                                                 
+                                        }
+        ))
+    
+    mean_idx = len(df)
+    std_idx = len(df)+1
+
+    mean_values = df.iloc[:mean_idx, 1:].mean()  # Fold 값을 제외한 열의 평균 계산
+    std_values = df.iloc[:mean_idx, 1:].std()    # Fold 값을 제외한 열의 표준편차 계산
+
+    # 6번째 행을 'mean', 7번째 행을 'std'로 변경
+    df.loc[mean_idx, 'Fold'] = 'mean'
+    df.loc[std_idx, 'Fold'] = 'std'
+
+    # 평균값과 표준편차 값을 데이터프레임에 반영
+    df.iloc[mean_idx, 1:] = mean_values
+    df.iloc[std_idx, 1:] = std_values
+
+    version_dir = os.path.join(save_dir, f'version_{save_version}/fold_result')
+    create_directory(version_dir)
+    csv_file_path = os.path.join(version_dir, f'{info}.csv')
+    df.to_csv(csv_file_path, index=False)
+
+def save_transform(info, file_name="/transform_info.txt"):
+    save_version = get_save_version(save_dir)
+
+    version_dir = os.path.join(save_dir, f'version_{save_version}/fold_result')
+    create_directory(version_dir)
+
+    with open(version_dir+file_name, "a") as file:
+        file.write(info + "\n")
+
+def get_save_version(save_dir):
+    version_dirs = [d for d in os.listdir(save_dir) if d.startswith('version_')]
+    if version_dirs:
+        version_numbers = [int(d.split('_')[1]) for d in version_dirs]
+        save_version = max(version_numbers)
+    else:
+        save_version = 0
+
+    return save_version
+
+def create_directory(directory):
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    except OSError:
+        print("Error: Failed to create the directory.")
+
+if __name__=='__main__':
+    save_transform()

@@ -132,59 +132,64 @@ def train_kfolds(model, train_set, test_set, k_folds, trainer_config):
 
 
 if __name__ == '__main__':
-    tile_sizes = [32, 16, 8, 4]  # 128부터 시작하여 2배씩 줄어듦
-    use_center_crop_options = ['center', 'circular', False]    # CenterCrop 사용 여부
+    tile_sizes      = [32, 16, 8, 4]  # 128부터 시작하여 2배씩 줄어듦
+    crop_options    = ['center', 'circular', False]    # CenterCrop 사용 여부
+    green_options   = [True, False]    
+    gamma_options   = [0.7, 0.6, 0.5, 0.4, 0.3]    
     entire_time_start = time.time()
         # 모든 transform 조합을 반복
-    for use_center_crop, tile_size in itertools.product(use_center_crop_options, tile_sizes):
-        for t in [2]:    
-            # if not use_center_crop:
-            #     gaussian_sigma_options = [None, 50, 70]  # GaussianMultiplyTransform의 sigma 설정
-            # else:
-            gaussian_sigma_options = [None]  # CenterCrop을 사용하는 경우 GaussianMultiplyTransform을 사용하지 않음
+    for crop, tile_size in itertools.product(crop_options, tile_sizes):
+        for green in green_options:    
+            for gamma in gamma_options:    
+                # if not crop:
+                #     gaussian_sigma_options = [None, 50, 70]  # GaussianMultiplyTransform의 sigma 설정
+                # else:
+                gaussian_sigma_options = [None]  # CenterCrop을 사용하는 경우 GaussianMultiplyTransform을 사용하지 않음
 
-            for gaussian_sigma in gaussian_sigma_options:
-                for aug in [False, True]:
-                    transform_list = trs.grid_search_transform(
-                        image_size=IMAGE_SIZE, 
-                        use_center_crop=use_center_crop, 
-                        gaussian_sigma=gaussian_sigma,
-                        tile_size=tile_size
-                    )
-                    
-                    info = f'Fold{k_folds},Tile{tile_size},Crop{use_center_crop}task{t}aug{aug}'
-                    print(info)
-                    train_set   = ds.CustomImageDataset(label_path, 
-                                                            image_path, 
-                                                            transform_list[0], 
-                                                            task=t)
-                    if aug:
-                        aug_train_set   = ds.CustomImageDataset(label_path, 
+                for gaussian_sigma in gaussian_sigma_options:
+                    for aug in [False, True]:
+                        transform_list = trs.grid_search_transform(
+                            image_size=IMAGE_SIZE, 
+                            crop=crop, 
+                            gaussian_sigma=gaussian_sigma,
+                            tile_size=tile_size,
+                            gamma=gamma,
+                            green=green
+                        )
+                        
+                        info = f'Tile{tile_size},Crop{crop},Green{green},Gamma{gamma_options},Aug{aug}'
+                        print(info)
+                        train_set   = ds.CustomImageDataset(label_path, 
                                                                 image_path, 
                                                                 transform_list[0], 
                                                                 task=t)
-                        train_set = ConcatDataset([train_set, aug_train_set])
+                        if aug:
+                            aug_train_set   = ds.CustomImageDataset(label_path, 
+                                                                    image_path, 
+                                                                    transform_list[0], 
+                                                                    task=t)
+                            train_set = ConcatDataset([train_set, aug_train_set])
 
-                    test_set        = ds.CustomImageDataset(test_label_path, 
-                                                            test_image_path, 
-                                                            transform_list[0], 
-                                                            task=t)
-                    print(train_set.__len__())
-                    model = resnet34()
-                    
-                    fold_results = train_kfolds(
-                        model=model,
-                        train_set=train_set,
-                        test_set=test_set,
-                        k_folds=k_folds,
-                        trainer_config=trainer_config,
-                    )
+                        test_set        = ds.CustomImageDataset(test_label_path, 
+                                                                test_image_path, 
+                                                                transform_list[0], 
+                                                                task=t)
+                        print(train_set.__len__())
+                        model = resnet34()
+                        
+                        fold_results = train_kfolds(
+                            model=model,
+                            train_set=train_set,
+                            test_set=test_set,
+                            k_folds=k_folds,
+                            trainer_config=trainer_config,
+                        )
 
-                    # vis.visualize_RGB(dataset=dataset, rows=3)
+                        # vis.visualize_RGB(dataset=dataset, rows=3)
 
-                    # 결과 저장 및 출력
-                    vis.save_and_print_fold_results(info, fold_results)
-                    vis.save_transform(info)
+                        # 결과 저장 및 출력
+                        vis.save_and_print_fold_results(info, fold_results)
+                        vis.save_transform(info)
     entire_time_end = time.time()
     print('entire time  :', entire_time_start - entire_time_end)
     print('time starts  :', entire_time_start)

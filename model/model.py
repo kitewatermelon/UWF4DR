@@ -108,10 +108,10 @@ class ResNet(pl.LightningModule):
         
         # Compute metrics
         accuracy = self.train_accuracy(scores, y)
-        f1_score = self.f1_score(scores, y)
         aucroc = self.aucroc(scores, y)
         precision = self.precision(scores, y)
         recall = self.recall(scores, y)
+        f1_score = 2 * (recall * precision)/ (recall + precision)
 
         self.log_dict({
             'train_loss': loss,
@@ -130,10 +130,10 @@ class ResNet(pl.LightningModule):
 
         # Compute metrics
         accuracy = self.valid_accuracy(scores, y)
-        f1_score = self.f1_score(scores, y)
         aucroc = self.aucroc(scores, y)
         precision = self.precision(scores, y)
         recall = self.recall(scores, y)
+        f1_score = 2 * (recall * precision)/ (recall + precision)
 
         self.log_dict({
             'val_loss': loss,
@@ -152,10 +152,10 @@ class ResNet(pl.LightningModule):
         
         # Compute metrics
         accuracy = self.test_accuracy(scores, y)
-        f1_score = self.f1_score(scores, y)
         aucroc = self.aucroc(scores, y)
         precision = self.precision(scores, y)
         recall = self.recall(scores, y)
+        f1_score = 2 * (recall * precision)/ (recall + precision)
 
         self.log_dict({
             'test_loss': loss,

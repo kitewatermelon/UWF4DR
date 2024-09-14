@@ -105,6 +105,53 @@ def visualize_data(dataset, hist=False):
 
         plt.suptitle('Pixel Intensity Histograms', y=0.95)
         plt.show()
+        
+        
+def visualize_data(dataset, hist=False):
+    '''
+        This function shows random images from the dataset.
+        dataset : a dataset contains images.
+        hist : if True, display histogram alongside the image.
+    '''
+
+    sample_idx_list = []
+    cols, rows = 4, 4
+    for i in range(cols * rows ):
+        sample_idx_list.append(torch.randint(len(dataset), size=(1,)).item())
+    figure = plt.figure(figsize=(12, 12))
+    for i, sample_idx in enumerate(sample_idx_list, 1):
+        img, label = dataset[sample_idx]
+
+        # Add subplot for the image
+        figure.add_subplot(rows, cols, i)
+        plt.title(CLA_label[label])
+        plt.axis("off")
+        img_np = img.numpy().transpose((1, 2, 0))
+        img_valid_range = np.clip(img_np, 0, 1)  # Clip pixel values to [0, 1]
+        plt.imshow(img_valid_range)
+    
+    plt.suptitle('Retinopathy Images', y=0.95)
+    plt.show()
+
+    # If hist is True, display histograms for pixel intensity distribution
+    if hist:
+        figure_hist = plt.figure(figsize=(12, 12))
+        for i, sample_idx in enumerate(sample_idx_list, 1):
+            img, label = dataset[sample_idx]
+            img_np = img.numpy().transpose((1, 2, 0))
+            img_valid_range = np.clip(img_np, 0, 1)
+
+            # Add subplot for the histogram
+            ax = figure_hist.add_subplot(rows, cols, i)
+            ax.hist(img_valid_range.ravel(), bins=256, range=[0, 1])
+            ax.set_title(CLA_label[label])
+            ax.set_xlim([0, 1]) 
+            ax.set_ylim([0, 300]) 
+
+        plt.suptitle('Pixel Intensity Histograms', y=0.95)
+        plt.show()
+        
+
 
 def save_and_print_fold_results(info, fold_results):
     df = pd.DataFrame(fold_results)

@@ -1,12 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import pytorch_lightning as pl
 from torch.optim import Adam
-from torch import tensor
-
+from torchmetrics.classification import BinaryAccuracy, F1Score, AUROC, Precision, Recall
 from config import NUM_CLASSES
-import torchmetrics
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -37,20 +34,27 @@ class BasicBlock(nn.Module):
         
         return out
 
-class ResNet(pl.LightningModule):  # Inherit from LightningModule
+class ResNet(pl.LightningModule):
     def __init__(self, block, layers, num_classes=NUM_CLASSES, learning_rate=1e-3):
         super(ResNet, self).__init__()
         self.save_hyperparameters()  # Save hyperparameters like num_classes and learning_rate
         self.in_channels = 64
-        self.learning_rate  = learning_rate
-        self.loss_fn        = nn.CrossEntropyLoss()
-        self.accuracy       = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
-        self.f1_score       = torchmetrics.F1Score(task="multiclass", num_classes=num_classes)
-        self.aucroc         = torchmetrics.AUROC(task="multiclass", num_classes=num_classes)
-        self.precision      = torchmetrics.Precision(task="multiclass", num_classes=num_classes)
-        self.recall         = torchmetrics.Recall(task="multiclass", num_classes=num_classes)
+        self.learning_rate = learning_rate
 
-        # Define layers
+        # Loss function
+        self.loss_fn = nn.BCEWithLogitsLoss()
+
+        # Metrics
+        self.train_accuracy = BinaryAccuracy()
+        self.valid_accuracy = BinaryAccuracy()
+        self.test_accuracy = BinaryAccuracy()
+
+        self.f1_score = F1Score(num_classes=1, task='binary', average='none')
+        self.aucroc = AUROC(num_classes=1, task='binary')
+        self.precision = Precision(num_classes=1, task='binary', average='none')
+        self.recall = Recall(num_classes=1, task='binary', average='none')
+        
+        # Define network layers
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
@@ -62,7 +66,7 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.fc = nn.Linear(512 * block.expansion, 1)
 
     def _make_layer(self, block, out_channels, blocks, stride=1):
         downsample = None
@@ -99,59 +103,86 @@ class ResNet(pl.LightningModule):  # Inherit from LightningModule
         return x
 
     def training_step(self, batch, batch_idx):
-        loss, scores, y = self._common_step(batch, batch_idx)
-        accuracy = self.accuracy(scores, y)
+        x, y = batch
+        loss, scores, y = self._common_step(x, y)
+        
+        # Compute metrics
+        accuracy = self.train_accuracy(scores, y)
         f1_score = self.f1_score(scores, y)
         aucroc = self.aucroc(scores, y)
         precision = self.precision(scores, y)
         recall = self.recall(scores, y)
+
+        self.log_dict({
+            'train_loss': loss,
+            'train_accuracy': accuracy,
+            'train_f1_score': f1_score,
+            'train_aucroc': aucroc,
+            'train_precision': precision,
+            'train_recall': recall,
+        }, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         
-        self.log_dict({'train_loss'     :loss,
-                       'train_accuracy' :accuracy,
-                       'train_f1_score' :f1_score,
-                       'train_aucroc'   :aucroc,
-                       'train_precision':precision,
-                       'train_recall'   :recall,
-                       },
-                       on_step=False,
-                       on_epoch=True,
-                       prog_bar=True,
-                       logger=True
-                       )
-        return {'loss' : loss,' scores' : scores, 'y' : y}
+        return {'loss': loss, 'scores': scores, 'y': y}
 
     def validation_step(self, batch, batch_idx):
-        loss, scores, y = self._common_step(batch, batch_idx)
-        accuracy = self.accuracy(scores, y)
+        x, y = batch
+        loss, scores, y = self._common_step(x, y)
+
+        # Compute metrics
+        accuracy = self.valid_accuracy(scores, y)
         f1_score = self.f1_score(scores, y)
         aucroc = self.aucroc(scores, y)
         precision = self.precision(scores, y)
         recall = self.recall(scores, y)
-        
-        self.log_dict({'val_loss'     :loss,
-                       'val_accuracy' :accuracy,
-                       'val_f1_score' :f1_score,
-                       'val_aucroc'   :aucroc,
-                       'val_precision':precision,
-                       'val_recall'   :recall,
-                       },
-                       on_step=False,
-                       on_epoch=True,
-                       prog_bar=True,
-                       logger=True
-                       )
-        return {'loss' : loss,' scores' : scores, 'y' : y}
 
-    
+        self.log_dict({
+            'val_loss': loss,
+            'val_accuracy': accuracy,
+            'val_f1_score': f1_score,
+            'val_aucroc': aucroc,
+            'val_precision': precision,
+            'val_recall': recall,
+        }, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        
+        return {'loss': loss, 'scores': scores, 'y': y}
+
     def test_step(self, batch, batch_idx):
-        loss, scores, y = self._common_step(batch, batch_idx)
-        return loss
-    
-    def _common_step(self, batch, batch_idx):
         x, y = batch
+        loss, scores, y = self._common_step(x, y)
+        
+        # Compute metrics
+        accuracy = self.test_accuracy(scores, y)
+        f1_score = self.f1_score(scores, y)
+        aucroc = self.aucroc(scores, y)
+        precision = self.precision(scores, y)
+        recall = self.recall(scores, y)
+
+        self.log_dict({
+            'test_loss': loss,
+            'test_accuracy': accuracy,
+            'test_f1_score': f1_score,
+            'test_aucroc': aucroc,
+            'test_precision': precision,
+            'test_recall': recall,
+        }, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        
+        return {'loss': loss, 'scores': scores, 'y': y}
+
+    def _common_step(self, x, y):
+        # Forward pass through the model
         scores = self.forward(x)
-        loss = self.loss_fn(scores, y)
-        return loss, scores, y
+        
+        # Apply sigmoid to get probabilities for binary classification
+        scores = torch.sigmoid(scores)
+        
+        # Convert probabilities to binary predictions
+        binary_scores = (scores >= 0.5).long()
+        binary_scores = binary_scores.squeeze(1)  # Remove any extra dimensions
+
+        # Calculate the loss
+        loss = self.loss_fn(scores.squeeze(1), y)  
+        y = y.to(dtype=torch.int)  # Ensure y is of integer type for metrics
+        return loss, binary_scores, y
 
     def configure_optimizers(self):
         optimizer = Adam(self.parameters(), lr=self.learning_rate)

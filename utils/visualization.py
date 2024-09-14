@@ -123,6 +123,13 @@ def save_and_print_fold_results(info, fold_results):
                         'val_aucroc' ,  
                         'val_precision',
                         'val_recall' ,  
+                        
+                        'test_loss' ,    
+                        'test_accuracy' ,
+                        'test_f1_score' ,
+                        'test_aucroc' ,  
+                        'test_precision',
+                        'test_recall' ,  
                         ]
 
     if len(df.columns) != len(expected_columns):
@@ -144,8 +151,15 @@ def save_and_print_fold_results(info, fold_results):
         'val_f1_score'  : '{:.4f}'.format,
         'val_aucroc'    : '{:.4f}'.format,  
         'val_precision' : '{:.4f}'.format,
-        'val_recall'    : '{:.4f}'.format,                                                 
-                                        }
+        'val_recall'    : '{:.4f}'.format,  
+
+        'test_loss'      : '{:.4f}'.format,    
+        'test_accuracy'  : '{:.4f}'.format,
+        'test_f1_score'  : '{:.4f}'.format,
+        'test_aucroc'    : '{:.4f}'.format,  
+        'test_precision' : '{:.4f}'.format,
+        'test_recall'    : '{:.4f}'.format,                                                 
+        }
         ))
     
     mean_idx = len(df)

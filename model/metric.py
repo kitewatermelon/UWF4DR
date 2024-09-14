@@ -1,66 +1,46 @@
-import matplotlib.pyplot as plt
-import seaborn as sns
 import torch
-from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, roc_curve, precision_recall_curve
+import torch.nn.functional as F
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, precision_score, recall_score
 
-# 모델 평가 함수
-def evaluate_model(model, data_loader, epochs, device, 
-                   loss_hist_m, metric_hist_m):
-
-    # Convergence History Plot
-    fig,ax = plt.subplots(1,2,figsize=(12,5))
-
-    sns.lineplot(x=[*range(1,epochs+1)],y=loss_hist_m["train"],ax=ax[0],label='loss_hist["train"]')
-    sns.lineplot(x=[*range(1,epochs+1)],y=loss_hist_m["val"],ax=ax[0],label='loss_hist["val"]')
-    sns.lineplot(x=[*range(1,epochs+1)],y=metric_hist_m["train"],ax=ax[1],label='Acc_hist["train"]')
-    sns.lineplot(x=[*range(1,epochs+1)],y=metric_hist_m["val"],ax=ax[1],label='Acc_hist["val"]')
-
-    plt.title(f"{model.__class__.__name__} Loss-Acc")
+def calculate_metrics(y_true, y_pred):
+    """
+    Custom function to calculate accuracy, F1 score, AUC-ROC, precision, and recall.
     
-    model.eval()
-    all_labels = []
-    all_preds = []
-    all_probs = []
+    Args:
+    - y_true (torch.Tensor): Ground truth labels (binary 0 or 1).
+    - y_pred (torch.Tensor): Predicted logits or probabilities (before thresholding).
+    
+    Returns:
+    - metrics_dict (dict): Dictionary containing calculated metrics.
+    """
+    
+    y_true_np = y_true.cpu().numpy()
+    y_pred_np = y_pred.cpu().numpy()
+    # print("original",
+    #       y_pred,
+    #       y_true)
+    # print("np",
+    #       y_pred_np,
+    #       y_true_np)
+    # Calculate metrics
+    accuracy = accuracy_score(y_true_np, y_pred_np)
+    f1 = f1_score(y_true_np, y_pred_np)
+    precision = precision_score(y_true_np, y_pred_np)
+    recall = recall_score(y_true_np, y_pred_np)
 
-    with torch.no_grad():
-        for xb, yb in data_loader:
-            xb, yb = xb.to(device), yb.to(device)
-            output = model(xb)
-            probs = torch.exp(output)
-            preds = probs.argmax(dim=1)
-            all_labels.extend(yb.cpu().numpy())
-            all_preds.extend(preds.cpu().numpy())
-            all_probs.extend(probs[:, 1].cpu().numpy())
+    # AUC-ROC requires probabilities, not binary predictions
+    if len(torch.unique(y_true)) > 1:  # AUC-ROC requires both classes to be present
+        aucroc = roc_auc_score(y_true_np, y_pred.cpu().numpy())
+    else:
+        aucroc = float('nan')  # Return NaN if AUC can't be calculated
 
-    accuracy = accuracy_score(all_labels, all_preds)
-    auroc = roc_auc_score(all_labels, all_probs)
-    auprc = average_precision_score(all_labels, all_probs)
+    # Create a dictionary of the metrics
+    metrics_dict = {
+        'accuracy': accuracy,
+        'f1_score': f1,
+        'precision': precision,
+        'recall': recall,
+        'aucroc': aucroc
+    }
 
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"AUROC: {auroc:.4f}")
-    print(f"AUPRC: {auprc:.4f}")
-
-    # ROC Curve
-    fpr, tpr, _ = roc_curve(all_labels, all_probs)
-    plt.figure(figsize=(10, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(fpr, tpr, label=f"AUROC: {auroc:.4f}")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve")
-    plt.legend(loc="lower right")
-
-    # Precision-Recall Curve
-    precision, recall, _ = precision_recall_curve(all_labels, all_probs)
-    plt.subplot(1, 2, 2)
-    plt.plot(recall, precision, label=f"AUPRC: {auprc:.4f}")
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.title("Precision-Recall Curve")
-    plt.legend(loc="lower left")
-
-    plt.tight_layout()
-    plt.show()
-
-    return accuracy, auroc, auprc, all_labels, all_preds, all_probs
-
+    return metrics_dict

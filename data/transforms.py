@@ -131,7 +131,7 @@ class CircularCrop(object):
 
 
 def grid_search_transform(image_size=256, 
-                          use_center_crop=False, 
+                          crop=False, 
                           gaussian_sigma=None, 
                           aug=True,
                           green=True,
@@ -156,10 +156,10 @@ def grid_search_transform(image_size=256,
         ])
 
     # 옵션 1: CenterCrop 적용
-    if use_center_crop == 'center':
+    if crop == 'center':
         original_transform.append(transforms.CenterCrop(image_size // 2))
         aug_transform.append(transforms.CenterCrop(image_size // 2))
-    if use_center_crop == 'circular':
+    if crop == 'circular':
         original_transform.append(CircularCrop(IMAGE_SIZE-10))
         aug_transform.append(CircularCrop(IMAGE_SIZE-10))
 

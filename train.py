@@ -134,8 +134,11 @@ def train_kfolds(model, train_set, test_set, k_folds, trainer_config):
 if __name__ == '__main__':
     tile_sizes      = [32, 16, 8, 4]  # 128부터 시작하여 2배씩 줄어듦
     crop_options    = ['center', 'circular', False]    # CenterCrop 사용 여부
-    green_options   = [True, False]    
+    green_options   = [False]    
     gamma_options   = [0.7, 0.6, 0.5, 0.4, 0.3]    
+    gaussian_sigma_options = [None]
+    task = 2
+    
     entire_time_start = time.time()
         # 모든 transform 조합을 반복
     for crop, tile_size in itertools.product(crop_options, tile_sizes):
@@ -144,7 +147,7 @@ if __name__ == '__main__':
                 # if not crop:
                 #     gaussian_sigma_options = [None, 50, 70]  # GaussianMultiplyTransform의 sigma 설정
                 # else:
-                gaussian_sigma_options = [None]  # CenterCrop을 사용하는 경우 GaussianMultiplyTransform을 사용하지 않음
+                # gaussian_sigma_options = [None]  # CenterCrop을 사용하는 경우 GaussianMultiplyTransform을 사용하지 않음
 
                 for gaussian_sigma in gaussian_sigma_options:
                     for aug in [False, True]:
@@ -157,23 +160,23 @@ if __name__ == '__main__':
                             green=green
                         )
                         
-                        info = f'Tile{tile_size},Crop{crop},Green{green},Gamma{gamma_options},Aug{aug}'
+                        info = f'Tile{tile_size},Crop{crop},Gamma{gamma_options},Aug{aug}'
                         print(info)
                         train_set   = ds.CustomImageDataset(label_path, 
                                                                 image_path, 
                                                                 transform_list[0], 
-                                                                task=t)
+                                                                task=task)
                         if aug:
                             aug_train_set   = ds.CustomImageDataset(label_path, 
                                                                     image_path, 
                                                                     transform_list[0], 
-                                                                    task=t)
+                                                                    task=task)
                             train_set = ConcatDataset([train_set, aug_train_set])
 
                         test_set        = ds.CustomImageDataset(test_label_path, 
                                                                 test_image_path, 
                                                                 transform_list[0], 
-                                                                task=t)
+                                                                task=task)
                         print(train_set.__len__())
                         model = resnet34()
                         
